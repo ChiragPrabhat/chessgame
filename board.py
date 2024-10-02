@@ -33,6 +33,11 @@ class ChessBoard:
         self.selected_piece = None
         self.selected_position = None
 
+        #promotion vaaste
+        self.promotion_piece = None
+        self.promoting_pawn_position = None
+        self.promotion_options = ['queen', 'bishop', 'rook', 'knight']
+
     def setup_pieces(self):
         """Set up initial piece positions on the board."""
         for i in range(8):
@@ -225,6 +230,13 @@ class ChessBoard:
 
         return moves
 
+         # Add check for pawn promotion
+        if piece[0] == 'pawn' and ((piece[1] == 'white' and row == 0) or (piece[1] == 'black' and row == 7)):
+            self.promoting_pawn_position = (row, col)
+            return []  # Temporarily disable normal moves for the pawn
+
+        return moves  # Continue with other moves
+
 
     def draw_board(self):
         """Draw the chessboard and the pieces."""
@@ -245,12 +257,100 @@ class ChessBoard:
                     piece_type, piece_color = piece
                     self.piece_manager.draw_piece(self.screen, piece_type, piece_color, col, row)
 
+    def draw_promotion_popup(self, promotion_position, current_turn, white_pieces, black_pieces):
+        """Draws a promotion popup for white and black pawns, positioning options and handling clicks."""
+        row, col = promotion_position
+        cell_size = self.cell_size
+        popup_piece_size = int(cell_size * 0.8)  # Size of the piece images
+        padding = int(cell_size * 0.1)  # Padding
+
+        # Determine the pieces available for promotion based on the current turn
+        pieces = white_pieces if current_turn == 'white' else black_pieces
+
+        # Store the positions of the promotion options
+        self.promotion_option_rects = []
+
+        # Adjust position based on the current turn
+        if current_turn == 'white':
+            start_row = row + 1  # Place options below the promotion row
+            if start_row + 4 > 7:  # Ensure it stays within the board bounds
+                start_row = 7 - 4  # Adjust to fit options
+        else:
+            start_row = row - 4  # Place options above the promotion row
+            if start_row < 0:  # Adjust if it goes out of bounds
+                start_row = 0
+
+        # Draw the promotion options on different blocks (cells)
+        for i, piece_image in enumerate(pieces):
+            option_row = start_row + i
+            popup_x = col * cell_size + padding  # X position (same for all pieces in this column)
+            popup_y = option_row * cell_size + padding  # Y position (adjusted by row for each piece)
+
+            # Draw the piece option in the popup
+            self.screen.blit(pygame.transform.scale(piece_image, (popup_piece_size, popup_piece_size)), (popup_x, popup_y))
+
+            # Store the position (rect) for each promotion option for click detection
+            rect = pygame.Rect(popup_x, popup_y, popup_piece_size, popup_piece_size)
+            self.promotion_option_rects.append(rect)
+
+    def is_in_promotion_popup(self, mouse_x, mouse_y, promotion_position, current_turn):
+        """Check if the mouse is within the bounds of the promotion popup."""
+        row, col = promotion_position
+        tile_size = self.cell_size
+
+        if current_turn == 'white':
+            popup_x = col * tile_size + tile_size // 2  # Center the popup relative to the column
+            popup_y = (row + 1) * tile_size  # Position for white dropdown
+        else:
+            popup_x = col * tile_size + tile_size // 2  # Center the popup relative to the column
+            popup_y = (row - 4) * tile_size  # Position for black dropup
+        
+        popup_width = tile_size
+        popup_height = tile_size * 4  # Space for 4 pieces
+
+        return popup_x <= mouse_x < popup_x + popup_width and popup_y <= mouse_y < popup_y + popup_height
+
+    def handle_promotion_selection(self, mouse_x, mouse_y, promotion_position, current_turn):
+        """Handle the promotion piece selection based on mouse click."""
+        tile_size = self.cell_size
+
+        # Adjust index based on current turn
+        if current_turn == 'white':
+            index = (mouse_y - ((promotion_position[0] + 1) * tile_size)) // tile_size
+        else:
+            index = (mouse_y - ((promotion_position[0] - 4) * tile_size)) // tile_size
+
+        if 0 <= index < 4:  # Ensure the index is within the valid range
+            if current_turn == 'white':
+                return ('queen', 'white') if index == 0 else ('rook', 'white') if index == 1 else ('knight', 'white') if index == 2 else ('bishop', 'white')
+            else:
+                return ('queen', 'black') if index == 0 else ('rook', 'black') if index == 1 else ('knight', 'black') if index == 2 else ('bishop', 'black')
+        return None  # Return None if index is out of bounds
+
+
+
     def run(self):
         """Main game loop."""
         selected_piece = None
         selected_row = None
         selected_col = None
         current_turn = 'white'  # White starts first
+        promoting_pawn = False
+        promotion_position = None
+
+        # Load images for promotion options for both white and black
+        white_pieces = [
+            pygame.image.load('images/white_queen.png'), 
+            pygame.image.load('images/white_rook.png'), 
+            pygame.image.load('images/white_knight.png'), 
+            pygame.image.load('images/white_bishop.png')
+        ]
+        black_pieces = [
+            pygame.image.load('images/black_queen.png'), 
+            pygame.image.load('images/black_rook.png'), 
+            pygame.image.load('images/black_knight.png'), 
+            pygame.image.load('images/black_bishop.png')
+        ]
 
         while True:
             for event in pygame.event.get():
@@ -260,10 +360,23 @@ class ChessBoard:
 
                 if event.type == MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
+
+                    # Handle pawn promotion selection
+                    if promoting_pawn:
+                        if self.is_in_promotion_popup(mouse_x, mouse_y, promotion_position, current_turn):
+                            promoted_piece = self.handle_promotion_selection(mouse_x, mouse_y, promotion_position, current_turn)
+                            if promoted_piece:
+                                # Promote the pawn by replacing it with the selected piece
+                                self.board[promotion_position[0]][promotion_position[1]] = promoted_piece
+                                promoting_pawn = False
+                                promotion_position = None
+                                selected_piece = None  # Ensure selection is cleared
+                                # Switch turn only after the promotion is complete
+                                current_turn = 'black' if current_turn == 'white' else 'white'
+                            continue  # Ensure we continue to listen for further clicks
+
                     col = mouse_x // self.cell_size
                     row = mouse_y // self.cell_size
-
-                    piece = self.board[row][col]
 
                     # If a piece is already selected
                     if selected_piece is not None:
@@ -271,16 +384,24 @@ class ChessBoard:
                             # Move the piece
                             self.board[row][col] = selected_piece  # Place the piece in the new position
                             self.board[selected_row][selected_col] = None  # Remove it from the old position
-                            selected_piece = None  # Deselect piece
 
-                            # Switch turn
-                            current_turn = 'black' if current_turn == 'white' else 'white'
+                            # Check for pawn promotion
+                            if selected_piece[0] == 'pawn' and (row == 0 or row == 7):
+                                promoting_pawn = True
+                                promotion_position = (row, col)
+                                selected_piece = None  # Deselect to handle promotion properly
+
+                            # Switch turn after a move if not in promotion
+                            if not promoting_pawn:
+                                selected_piece = None  # Clear the selection after move
+                                current_turn = 'black' if current_turn == 'white' else 'white'
                         else:
                             # Deselect the piece if the click is not a valid move
-                            selected_piece = None  # Deselecting if it's not a valid move
+                            selected_piece = None  # Deselect if it's not a valid move
 
                     # If no piece is selected, try to select a piece
                     else:
+                        piece = self.board[row][col]
                         if piece and piece[1] == current_turn:  # Check if it's the current player's piece
                             selected_piece = piece
                             selected_row, selected_col = row, col
@@ -297,12 +418,19 @@ class ChessBoard:
                 for move in moves:
                     pygame.draw.rect(self.screen, (0, 255, 0), (move[1] * self.cell_size, move[0] * self.cell_size, self.cell_size, self.cell_size), 3)
 
+            # Draw promotion popup if a pawn is being promoted
+            if promoting_pawn:
+                self.draw_promotion_popup(promotion_position, current_turn, white_pieces, black_pieces)
+
             # Update the display
             pygame.display.update()
+
+
 
 
 
 # Create a ChessBoard instance and run the game
 if __name__ == "__main__":
     chess_board = ChessBoard(640, 640)
+
     chess_board.run()
