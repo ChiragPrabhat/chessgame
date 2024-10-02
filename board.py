@@ -7,8 +7,11 @@ from pieces import PieceManager
 pygame.init()
 
 class ChessBoard:
+    
     def __init__(self, width, height):
         # Set up the display
+        self.LIGHT_COLOR = (255, 255, 255)  # White color for light squares
+        self.DARK_COLOR = (125, 135, 150)
         self.screen = pygame.display.set_mode((width, height))
         self.width = width
         self.height = height
@@ -238,24 +241,36 @@ class ChessBoard:
         return moves  # Continue with other moves
 
 
-    def draw_board(self):
-        """Draw the chessboard and the pieces."""
+    def find_king(self, color):
+        """Find the position of the king for the specified color."""
         for row in range(8):
             for col in range(8):
-                color = self.WHITE if (row + col) % 2 == 0 else self.BLACK
-                pygame.draw.rect(self.screen, color, 
-                                 (col * self.cell_size, row * self.cell_size, self.cell_size, self.cell_size))
+                piece = self.board[row][col]
+                if piece and piece[0] == 'king' and piece[1] == color:
+                    return (row, col)  # Return the position of the king as a tuple (row, col)
+        return None  # Return None if the king is not found
 
-                # Highlight the square if it's a valid move
-                if self.selected_position and (row, col) in self.highlight_moves(self.selected_piece, *self.selected_position):
-                    pygame.draw.rect(self.screen, (0, 255, 0, 128),
-                                     (col * self.cell_size, row * self.cell_size, self.cell_size, self.cell_size))
+    
+    
+    def draw_board(self):
+        """Draw the chess board and pieces."""
+        # Iterate over the board and draw each piece
+        for row in range(8):
+            for col in range(8):
+                # Alternate colors for the board squares
+                if (row + col) % 2 == 0:
+                    color = self.LIGHT_COLOR  # Define this color somewhere in your class
+                else:
+                    color = self.DARK_COLOR  # Define this color somewhere in your class
+                
+                pygame.draw.rect(self.screen, color, (col * self.cell_size, row * self.cell_size, self.cell_size, self.cell_size))
 
-                # Draw pieces on the board
+                # Draw the pieces
                 piece = self.board[row][col]
                 if piece:
                     piece_type, piece_color = piece
                     self.piece_manager.draw_piece(self.screen, piece_type, piece_color, col, row)
+
 
     def draw_promotion_popup(self, promotion_position, current_turn, white_pieces, black_pieces):
         """Draws a promotion popup for white and black pawns, positioning options and handling clicks."""
@@ -536,8 +551,8 @@ class ChessBoard:
                                             game_over = True
                                             self.display_message("Game Draw!")  # Display the message
                         else:
-                            # Deselect the piece if the click is not a valid move
-                            selected_piece = None  # Deselect if it's not a valid move
+                                # Deselect the piece if the click is not a valid move
+                                selected_piece = None  # Deselect if it's not a valid move
 
                     # If no piece is selected, try to select a piece
                     else:
@@ -558,12 +573,20 @@ class ChessBoard:
                 for move in moves:
                     pygame.draw.rect(self.screen, (0, 255, 0), (move[1] * self.cell_size, move[0] * self.cell_size, self.cell_size, self.cell_size), 3)
 
+            # Draw the king square in red if in check
+            if self.is_king_in_check(current_turn):
+                king_pos = self.find_king(current_turn)
+                if king_pos:
+                    pygame.draw.rect(self.screen, (255, 0, 0), (king_pos[1] * self.cell_size, king_pos[0] * self.cell_size, self.cell_size, self.cell_size), 3)
+
             # Draw promotion popup if a pawn is being promoted
             if promoting_pawn:
                 self.draw_promotion_popup(promotion_position, current_turn, white_pieces, black_pieces)
 
             # Update the display
             pygame.display.update()
+
+
 
 
 
