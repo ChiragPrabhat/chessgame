@@ -7,20 +7,20 @@ class PieceManager:
         # Define separate scaling factors for white and black pieces
         self.scale_factors = {
             'white': {
-                'pawn': 0.8,
-                'rook': 0.7,
-                'knight': 0.7,
-                'bishop': 0.7,
-                'queen': 0.6,
-                'king': 0.6
+                'pawn': 0.9,
+                'rook': 0.9,
+                'knight': 0.9,
+                'bishop': 0.9,
+                'queen': 0.9,
+                'king': 0.9
             },
             'black': {
-                'pawn': 0.8,
-                'rook': 0.7,
-                'knight': 0.7,
-                'bishop': 0.7,
-                'queen': 0.6,
-                'king': 0.6
+                'pawn': 0.9,
+                'rook': 0.9,
+                'knight': 0.9,
+                'bishop': 0.9,
+                'queen': 0.9,
+                'king': 0.9
             }
         }
 

@@ -7,8 +7,11 @@ from pieces import PieceManager
 pygame.init()
 
 class ChessBoard:
+    
     def __init__(self, width, height):
         # Set up the display
+        self.LIGHT_COLOR = (255, 255, 255)  # White color for light squares
+        self.DARK_COLOR = (125, 135, 150)
         self.screen = pygame.display.set_mode((width, height))
         self.width = width
         self.height = height
@@ -63,6 +66,7 @@ class ChessBoard:
         self.board[7][2] = self.board[7][5] = ('bishop', 'white')
         self.board[7][3] = ('queen', 'white')
         self.board[7][4] = ('king', 'white')
+
 
     def draw_timer(self):
         """Draw the timers for both players."""
@@ -273,24 +277,43 @@ class ChessBoard:
         return moves  # Continue with other moves
 
 
-    def draw_board(self):
-        """Draw the chessboard and the pieces."""
+    def find_king(self, color):
+        """Find the position of the king for the specified color."""
         for row in range(8):
             for col in range(8):
-                color = self.WHITE if (row + col) % 2 == 0 else self.BLACK
-                pygame.draw.rect(self.screen, color, 
-                                 (col * self.cell_size, row * self.cell_size, self.cell_size, self.cell_size))
+                piece = self.board[row][col]
+                if piece and piece[0] == 'king' and piece[1] == color:
+                    return (row, col)  # Return the position of the king as a tuple (row, col)
+        return None  # Return None if the king is not found
 
+    
+    
+    def draw_board(self):
+        """Draw the chess board and pieces."""
+        # Iterate over the board and draw each piece
+        for row in range(8):
+            for col in range(8):
+                # Alternate colors for the board squares
+                if (row + col) % 2 == 0:
+                    color = self.LIGHT_COLOR  # Define this color somewhere in your class
+                else:
+                    color = self.DARK_COLOR  # Define this color somewhere in your class
+                
+                pygame.draw.rect(self.screen, color, (col * self.cell_size, row * self.cell_size, self.cell_size, self.cell_size))
+
+                # Draw the pieces
                 # Highlight the square if it's a valid move
                 if self.selected_position and (row, col) in self.highlight_moves(self.selected_piece, *self.selected_position):
                     pygame.draw.rect(self.screen, (0, 255, 0, 128),
                                      (col * self.cell_size, row * self.cell_size, self.cell_size, self.cell_size))
 
                 # Draw pieces on the board
+
                 piece = self.board[row][col]
                 if piece:
                     piece_type, piece_color = piece
                     self.piece_manager.draw_piece(self.screen, piece_type, piece_color, col, row)
+
 
     def draw_promotion_popup(self, promotion_position, current_turn, white_pieces, black_pieces):
         """Draws a promotion popup for white and black pawns, positioning options and handling clicks."""
@@ -436,6 +459,48 @@ class ChessBoard:
         pygame.quit()
         sys.exit()
 
+    def is_stalemate(self, color):
+        """Check if the player with the specified color is in stalemate."""
+        # If the king is in check, it's not a stalemate
+        if self.is_king_in_check(color):
+            return False
+
+        # Check if any piece of the current player can make a legal move
+        for row in range(8):
+            for col in range(8):
+                piece = self.board[row][col]
+                if piece and piece[1] == color:  # Current player's piece
+                    # Check all valid moves for the piece
+                    moves = self.highlight_moves(piece, row, col)
+                    for move in moves:
+                        # Simulate the move
+                        target_row, target_col = move
+                        previous_piece = self.board[target_row][target_col]  # Remember the target piece
+                        self.board[target_row][target_col] = piece  # Move the piece
+                        self.board[row][col] = None  # Remove it from the original position
+
+                        # Check if the king is still safe after the move
+                        if not self.is_king_in_check(color):
+                            # Revert the move and return False (not stalemate)
+                            self.board[row][col] = piece
+                            self.board[target_row][target_col] = previous_piece
+                            return False  # A legal move exists
+
+                        # Revert the move
+                        self.board[row][col] = piece
+                        self.board[target_row][target_col] = previous_piece
+
+        return True  # No legal moves available, and the king is not in check
+
+
+    def display_message(self, text):
+        """Display a message on the screen."""
+        font = pygame.font.Font(None, 74)  # You can customize the font and size here
+        message = font.render(text, True, (255, 0, 0))  # Render the text in red color
+        text_rect = message.get_rect(center=(self.screen.get_width() / 2, self.screen.get_height() / 2))
+        self.screen.blit(message, text_rect)
+        pygame.display.update()  # Update the display to show the text
+
 
     def run(self):
         """Main game loop."""
@@ -445,6 +510,9 @@ class ChessBoard:
         current_turn = 'white'  # White starts first
         promoting_pawn = False
         promotion_position = None
+
+        game_over = False  # Track if the game is over
+
 
         # Load images for promotion options for both white and black
         white_pieces = [
@@ -472,11 +540,18 @@ class ChessBoard:
                     pygame.quit()
                     sys.exit()
 
+
+                if game_over:
+                    continue  # Skip input if the game is over
+
+
                 if event.type == MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
                     col = mouse_x // self.cell_size
                     row = mouse_y // self.cell_size
+
                     self.switch_turn()
+
 
                     # Handle pawn promotion selection
                     if promoting_pawn:
@@ -514,18 +589,34 @@ class ChessBoard:
                                 # Display a message (optional)
                                 print(f"{current_turn} is in check! Move reverted.")
                             else:
+
                                 # Check for checkmate after a valid move
                                 opponent = 'black' if current_turn == 'white' else 'white'
                                 if self.is_checkmate(opponent):
                                     self.display_game_over(current_turn)  # Display game over message and exit
 
+
                                 # Switch turn after a move if not in promotion
                                 if not promoting_pawn:
                                     selected_piece = None  # Clear the selection after move
                                     current_turn = 'black' if current_turn == 'white' else 'white'
+
+
+                                    # Check for checkmate
+                                    if self.is_king_in_check(current_turn):
+                                        if self.is_checkmate(current_turn):
+                                            print(f"Checkmate! {current_turn} loses. Game Over!")
+                                            game_over = True
+                                            self.display_message("Checkmate!")
+                                    else:
+                                        # Check for stalemate
+                                        if self.is_stalemate(current_turn):
+                                            print("Stalemate! The game is a draw. Game Over!")
+                                            game_over = True
+                                            self.display_message("Game Draw!")  # Display the message
                         else:
-                            # Deselect the piece if the click is not a valid move
-                            selected_piece = None  # Deselect if it's not a valid move
+                                # Deselect the piece if the click is not a valid move
+                                selected_piece = None  # Deselect if it's not a valid move
 
                     # If no piece is selected, try to select a piece
                     else:
@@ -551,9 +642,38 @@ class ChessBoard:
             if promoting_pawn:
                 self.draw_promotion_popup(promotion_position, current_turn, white_pieces, black_pieces)
 
+            # Highlight valid moves if a piece is selected
+            if selected_piece:
+                moves = self.highlight_moves(selected_piece, selected_row, selected_col)
+                for move in moves:
+                    pygame.draw.rect(self.screen, (0, 255, 0), (move[1] * self.cell_size, move[0] * self.cell_size, self.cell_size, self.cell_size), 3)
+
+            # Draw the king square in red if in check
+            if self.is_king_in_check(current_turn):
+                king_pos = self.find_king(current_turn)
+                if king_pos:
+                    pygame.draw.rect(self.screen, (255, 0, 0), (king_pos[1] * self.cell_size, king_pos[0] * self.cell_size, self.cell_size, self.cell_size), 3)
+
+            # Draw promotion popup if a pawn is being promoted
+            if promoting_pawn:
+                self.draw_promotion_popup(promotion_position, current_turn, white_pieces, black_pieces)
+
             # Update the display
             pygame.display.update()
 
+
+
+
+
+
+
+
+ # Create a ChessBoard instance and run the game
+if __name__ == "__main__":
+    chess_board = ChessBoard(640, 640)
+
+    chess_board.run()
+=======
             if self.elapsed_time_white >= self.time_limit:
                 self.display_game_over('White Time Up!')  # Handle end of time limit for White
                 break
@@ -562,8 +682,4 @@ class ChessBoard:
                 break
 
             
-    # Create a ChessBoard instance and run the game
-if __name__ == "__main__":
-    chess_board = ChessBoard(640, 640)
 
-    chess_board.run()
