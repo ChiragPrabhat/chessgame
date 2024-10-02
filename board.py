@@ -17,6 +17,12 @@ class ChessBoard:
         self.height = height
         self.cell_size = width // 8  # Assuming an 8x8 grid
 
+        self.start_time_white = pygame.time.get_ticks()  
+        self.start_time_black = pygame.time.get_ticks() 
+        self.elapsed_time_white = 0
+        self.elapsed_time_black = 0
+        self.time_limit = 60000  
+        self.is_white_turn = True 
         # Define colors
         self.WHITE = (115, 149, 82)
         self.BLACK = (235, 236, 208)
@@ -60,6 +66,36 @@ class ChessBoard:
         self.board[7][2] = self.board[7][5] = ('bishop', 'white')
         self.board[7][3] = ('queen', 'white')
         self.board[7][4] = ('king', 'white')
+
+
+    def draw_timer(self):
+        """Draw the timers for both players."""
+        font = pygame.font.SysFont(None, 36)
+
+        # Calculate remaining time for each player
+        time_remaining_white = max(0, self.time_limit - self.elapsed_time_white) // 1000
+        time_remaining_black = max(0, self.time_limit - self.elapsed_time_black) // 1000
+
+        # Render timers
+        white_timer_text = font.render(f'White Time: {time_remaining_white}s', True, (255, 0, 0))
+        black_timer_text = font.render(f'Black Time: {time_remaining_black}s', True, (255, 0, 0))
+
+        # Draw timers at the top of the screen
+        self.screen.blit(white_timer_text, (10, 590))
+        self.screen.blit(black_timer_text, (10, 20))
+
+    def switch_turn(self):
+        """Switch the turn between players."""
+        if self.is_white_turn:
+            # Switch from White to Black
+            self.elapsed_time_white += pygame.time.get_ticks() - self.start_time_white
+            self.start_time_black = pygame.time.get_ticks()
+        else:
+            # Switch from Black to White
+            self.elapsed_time_black += pygame.time.get_ticks() - self.start_time_black
+            self.start_time_white = pygame.time.get_ticks()
+
+        self.is_white_turn = not self.is_white_turn  # Toggle turn
 
 
     def highlight_moves(self, piece, row, col):
@@ -266,6 +302,13 @@ class ChessBoard:
                 pygame.draw.rect(self.screen, color, (col * self.cell_size, row * self.cell_size, self.cell_size, self.cell_size))
 
                 # Draw the pieces
+                # Highlight the square if it's a valid move
+                if self.selected_position and (row, col) in self.highlight_moves(self.selected_piece, *self.selected_position):
+                    pygame.draw.rect(self.screen, (0, 255, 0, 128),
+                                     (col * self.cell_size, row * self.cell_size, self.cell_size, self.cell_size))
+
+                # Draw pieces on the board
+
                 piece = self.board[row][col]
                 if piece:
                     piece_type, piece_color = piece
@@ -416,7 +459,6 @@ class ChessBoard:
         pygame.quit()
         sys.exit()
 
-
     def is_stalemate(self, color):
         """Check if the player with the specified color is in stalemate."""
         # If the king is in check, it's not a stalemate
@@ -459,6 +501,7 @@ class ChessBoard:
         self.screen.blit(message, text_rect)
         pygame.display.update()  # Update the display to show the text
 
+
     def run(self):
         """Main game loop."""
         selected_piece = None
@@ -467,7 +510,9 @@ class ChessBoard:
         current_turn = 'white'  # White starts first
         promoting_pawn = False
         promotion_position = None
+
         game_over = False  # Track if the game is over
+
 
         # Load images for promotion options for both white and black
         white_pieces = [
@@ -484,18 +529,29 @@ class ChessBoard:
         ]
 
         while True:
+
+            if self.is_white_turn:
+                self.elapsed_time_white = pygame.time.get_ticks() - self.start_time_white
+            else:
+                self.elapsed_time_black = pygame.time.get_ticks() - self.start_time_black
+
             for event in pygame.event.get():
                 if event.type == QUIT:
                     pygame.quit()
                     sys.exit()
 
+
                 if game_over:
                     continue  # Skip input if the game is over
+
 
                 if event.type == MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
                     col = mouse_x // self.cell_size
                     row = mouse_y // self.cell_size
+
+                    self.switch_turn()
+
 
                     # Handle pawn promotion selection
                     if promoting_pawn:
@@ -533,10 +589,18 @@ class ChessBoard:
                                 # Display a message (optional)
                                 print(f"{current_turn} is in check! Move reverted.")
                             else:
+
+                                # Check for checkmate after a valid move
+                                opponent = 'black' if current_turn == 'white' else 'white'
+                                if self.is_checkmate(opponent):
+                                    self.display_game_over(current_turn)  # Display game over message and exit
+
+
                                 # Switch turn after a move if not in promotion
                                 if not promoting_pawn:
                                     selected_piece = None  # Clear the selection after move
                                     current_turn = 'black' if current_turn == 'white' else 'white'
+
 
                                     # Check for checkmate
                                     if self.is_king_in_check(current_turn):
@@ -566,6 +630,17 @@ class ChessBoard:
 
             # Draw the chess board
             self.draw_board()
+            self.draw_timer()
+
+            # Highlight valid moves if a piece is selected
+            if selected_piece:
+                moves = self.highlight_moves(selected_piece, selected_row, selected_col)
+                for move in moves:
+                    pygame.draw.rect(self.screen, (0, 255, 0), (move[1] * self.cell_size, move[0] * self.cell_size, self.cell_size, self.cell_size), 3)
+
+            # Draw promotion popup if a pawn is being promoted
+            if promoting_pawn:
+                self.draw_promotion_popup(promotion_position, current_turn, white_pieces, black_pieces)
 
             # Highlight valid moves if a piece is selected
             if selected_piece:
@@ -598,3 +673,13 @@ if __name__ == "__main__":
     chess_board = ChessBoard(640, 640)
 
     chess_board.run()
+=======
+            if self.elapsed_time_white >= self.time_limit:
+                self.display_game_over('White Time Up!')  # Handle end of time limit for White
+                break
+            if self.elapsed_time_black >= self.time_limit:
+                self.display_game_over('Black Time Up!')  # Handle end of time limit for Black
+                break
+
+            
+
