@@ -352,6 +352,56 @@ class ChessBoard:
 
         return False  # The king is safe
 
+    def is_checkmate(self, color):
+        """Check if the given player is in checkmate."""
+        # Check if the king is in check
+        if not self.is_king_in_check(color):
+            return False  # The king is not in check, no checkmate
+
+        # Try every possible move for the current player
+        for row in range(8):
+            for col in range(8):
+                piece = self.board[row][col]
+                if piece and piece[1] == color:  # Only look at the current player's pieces
+                    valid_moves = self.highlight_moves(piece, row, col)
+                    for move in valid_moves:
+                        new_row, new_col = move
+
+                        # Simulate the move
+                        previous_piece = self.board[new_row][new_col]
+                        self.board[new_row][new_col] = piece
+                        self.board[row][col] = None
+
+                        # Check if the king is still in check after the move
+                        if not self.is_king_in_check(color):
+                            # Revert the move and return False (no checkmate)
+                            self.board[row][col] = piece
+                            self.board[new_row][new_col] = previous_piece
+                            return False
+
+                        # Revert the move
+                        self.board[row][col] = piece
+                        self.board[new_row][new_col] = previous_piece
+
+        return True  # No valid moves left and the king is in check
+
+
+    def display_game_over(self, winner):
+        """Display 'Game Over' message."""
+        font = pygame.font.SysFont(None, 48)
+        text = font.render(f"Checkmate! {winner} wins!", True, (255, 0, 0))
+        text_rect = text.get_rect(center=(self.width // 2, self.height // 2))
+        self.screen.blit(text, text_rect)
+        pygame.display.update()
+
+        # Pause for 3 seconds to allow the player to see the message
+        pygame.time.wait(3000)
+
+        # Exit the game
+        pygame.quit()
+        sys.exit()
+
+
     def run(self):
         """Main game loop."""
         selected_piece = None
@@ -422,6 +472,11 @@ class ChessBoard:
                                 # Display a message (optional)
                                 print(f"{current_turn} is in check! Move reverted.")
                             else:
+                                # Check for checkmate after a valid move
+                                opponent = 'black' if current_turn == 'white' else 'white'
+                                if self.is_checkmate(opponent):
+                                    self.display_game_over(current_turn)  # Display game over message and exit
+
                                 # Switch turn after a move if not in promotion
                                 if not promoting_pawn:
                                     selected_piece = None  # Clear the selection after move
@@ -460,7 +515,8 @@ class ChessBoard:
 
 
 
-# Create a ChessBoard instance and run the game
+
+    # Create a ChessBoard instance and run the game
 if __name__ == "__main__":
     chess_board = ChessBoard(640, 640)
 
