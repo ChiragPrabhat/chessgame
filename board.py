@@ -14,6 +14,12 @@ class ChessBoard:
         self.height = height
         self.cell_size = width // 8  # Assuming an 8x8 grid
 
+        self.start_time_white = pygame.time.get_ticks()  
+        self.start_time_black = pygame.time.get_ticks() 
+        self.elapsed_time_white = 0
+        self.elapsed_time_black = 0
+        self.time_limit = 60000  
+        self.is_white_turn = True 
         # Define colors
         self.WHITE = (115, 149, 82)
         self.BLACK = (235, 236, 208)
@@ -57,6 +63,35 @@ class ChessBoard:
         self.board[7][2] = self.board[7][5] = ('bishop', 'white')
         self.board[7][3] = ('queen', 'white')
         self.board[7][4] = ('king', 'white')
+
+    def draw_timer(self):
+        """Draw the timers for both players."""
+        font = pygame.font.SysFont(None, 36)
+
+        # Calculate remaining time for each player
+        time_remaining_white = max(0, self.time_limit - self.elapsed_time_white) // 1000
+        time_remaining_black = max(0, self.time_limit - self.elapsed_time_black) // 1000
+
+        # Render timers
+        white_timer_text = font.render(f'White Time: {time_remaining_white}s', True, (255, 0, 0))
+        black_timer_text = font.render(f'Black Time: {time_remaining_black}s', True, (255, 0, 0))
+
+        # Draw timers at the top of the screen
+        self.screen.blit(white_timer_text, (10, 590))
+        self.screen.blit(black_timer_text, (10, 20))
+
+    def switch_turn(self):
+        """Switch the turn between players."""
+        if self.is_white_turn:
+            # Switch from White to Black
+            self.elapsed_time_white += pygame.time.get_ticks() - self.start_time_white
+            self.start_time_black = pygame.time.get_ticks()
+        else:
+            # Switch from Black to White
+            self.elapsed_time_black += pygame.time.get_ticks() - self.start_time_black
+            self.start_time_white = pygame.time.get_ticks()
+
+        self.is_white_turn = not self.is_white_turn  # Toggle turn
 
 
     def highlight_moves(self, piece, row, col):
@@ -426,6 +461,12 @@ class ChessBoard:
         ]
 
         while True:
+
+            if self.is_white_turn:
+                self.elapsed_time_white = pygame.time.get_ticks() - self.start_time_white
+            else:
+                self.elapsed_time_black = pygame.time.get_ticks() - self.start_time_black
+
             for event in pygame.event.get():
                 if event.type == QUIT:
                     pygame.quit()
@@ -435,6 +476,7 @@ class ChessBoard:
                     mouse_x, mouse_y = event.pos
                     col = mouse_x // self.cell_size
                     row = mouse_y // self.cell_size
+                    self.switch_turn()
 
                     # Handle pawn promotion selection
                     if promoting_pawn:
@@ -497,6 +539,7 @@ class ChessBoard:
 
             # Draw the chess board
             self.draw_board()
+            self.draw_timer()
 
             # Highlight valid moves if a piece is selected
             if selected_piece:
@@ -511,11 +554,14 @@ class ChessBoard:
             # Update the display
             pygame.display.update()
 
+            if self.elapsed_time_white >= self.time_limit:
+                self.display_game_over('White Time Up!')  # Handle end of time limit for White
+                break
+            if self.elapsed_time_black >= self.time_limit:
+                self.display_game_over('Black Time Up!')  # Handle end of time limit for Black
+                break
 
-
-
-
-
+            
     # Create a ChessBoard instance and run the game
 if __name__ == "__main__":
     chess_board = ChessBoard(640, 640)
