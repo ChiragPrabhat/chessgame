@@ -386,6 +386,17 @@ class ChessBoard:
                     col = mouse_x // self.cell_size
                     row = mouse_y // self.cell_size
 
+                    # Handle pawn promotion selection
+                    if promoting_pawn:
+                        if self.is_in_promotion_popup(mouse_x, mouse_y, promotion_position, current_turn):
+                            promoted_piece = self.handle_promotion_selection(mouse_x, mouse_y, promotion_position, current_turn)
+                            if promoted_piece:
+                                # Replace the pawn with the promoted piece
+                                self.board[promotion_position[0]][promotion_position[1]] = promoted_piece
+                                promoting_pawn = False  # Reset promotion state
+                                current_turn = 'black' if current_turn == 'white' else 'white'  # Switch turn
+                        continue  # Skip other logic if promoting
+
                     # If a piece is already selected
                     if selected_piece is not None:
                         # Store the current state before the move
@@ -444,6 +455,7 @@ class ChessBoard:
 
             # Update the display
             pygame.display.update()
+
 
 
 
