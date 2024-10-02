@@ -402,6 +402,48 @@ class ChessBoard:
         sys.exit()
 
 
+    def is_stalemate(self, color):
+        """Check if the player with the specified color is in stalemate."""
+        # If the king is in check, it's not a stalemate
+        if self.is_king_in_check(color):
+            return False
+
+        # Check if any piece of the current player can make a legal move
+        for row in range(8):
+            for col in range(8):
+                piece = self.board[row][col]
+                if piece and piece[1] == color:  # Current player's piece
+                    # Check all valid moves for the piece
+                    moves = self.highlight_moves(piece, row, col)
+                    for move in moves:
+                        # Simulate the move
+                        target_row, target_col = move
+                        previous_piece = self.board[target_row][target_col]  # Remember the target piece
+                        self.board[target_row][target_col] = piece  # Move the piece
+                        self.board[row][col] = None  # Remove it from the original position
+
+                        # Check if the king is still safe after the move
+                        if not self.is_king_in_check(color):
+                            # Revert the move and return False (not stalemate)
+                            self.board[row][col] = piece
+                            self.board[target_row][target_col] = previous_piece
+                            return False  # A legal move exists
+
+                        # Revert the move
+                        self.board[row][col] = piece
+                        self.board[target_row][target_col] = previous_piece
+
+        return True  # No legal moves available, and the king is not in check
+
+
+    def display_message(self, text):
+        """Display a message on the screen."""
+        font = pygame.font.Font(None, 74)  # You can customize the font and size here
+        message = font.render(text, True, (255, 0, 0))  # Render the text in red color
+        text_rect = message.get_rect(center=(self.screen.get_width() / 2, self.screen.get_height() / 2))
+        self.screen.blit(message, text_rect)
+        pygame.display.update()  # Update the display to show the text
+
     def run(self):
         """Main game loop."""
         selected_piece = None
@@ -410,6 +452,7 @@ class ChessBoard:
         current_turn = 'white'  # White starts first
         promoting_pawn = False
         promotion_position = None
+        game_over = False  # Track if the game is over
 
         # Load images for promotion options for both white and black
         white_pieces = [
@@ -430,6 +473,9 @@ class ChessBoard:
                 if event.type == QUIT:
                     pygame.quit()
                     sys.exit()
+
+                if game_over:
+                    continue  # Skip input if the game is over
 
                 if event.type == MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
@@ -472,15 +518,23 @@ class ChessBoard:
                                 # Display a message (optional)
                                 print(f"{current_turn} is in check! Move reverted.")
                             else:
-                                # Check for checkmate after a valid move
-                                opponent = 'black' if current_turn == 'white' else 'white'
-                                if self.is_checkmate(opponent):
-                                    self.display_game_over(current_turn)  # Display game over message and exit
-
                                 # Switch turn after a move if not in promotion
                                 if not promoting_pawn:
                                     selected_piece = None  # Clear the selection after move
                                     current_turn = 'black' if current_turn == 'white' else 'white'
+
+                                    # Check for checkmate
+                                    if self.is_king_in_check(current_turn):
+                                        if self.is_checkmate(current_turn):
+                                            print(f"Checkmate! {current_turn} loses. Game Over!")
+                                            game_over = True
+                                            self.display_message("Checkmate!")
+                                    else:
+                                        # Check for stalemate
+                                        if self.is_stalemate(current_turn):
+                                            print("Stalemate! The game is a draw. Game Over!")
+                                            game_over = True
+                                            self.display_message("Game Draw!")  # Display the message
                         else:
                             # Deselect the piece if the click is not a valid move
                             selected_piece = None  # Deselect if it's not a valid move
@@ -516,7 +570,7 @@ class ChessBoard:
 
 
 
-    # Create a ChessBoard instance and run the game
+ # Create a ChessBoard instance and run the game
 if __name__ == "__main__":
     chess_board = ChessBoard(640, 640)
 
