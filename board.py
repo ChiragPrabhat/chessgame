@@ -327,7 +327,30 @@ class ChessBoard:
                 return ('queen', 'black') if index == 0 else ('rook', 'black') if index == 1 else ('knight', 'black') if index == 2 else ('bishop', 'black')
         return None  # Return None if index is out of bounds
 
+    def is_king_in_check(self, color):
+        """Check if the king of the specified color is in check."""
+        # Find the king's position
+        king_pos = None
+        for row in range(8):
+            for col in range(8):
+                piece = self.board[row][col]
+                if piece and piece[0] == 'king' and piece[1] == color:
+                    king_pos = (row, col)
+                    break
+            if king_pos:
+                break
 
+        # Check for threats from opponent's pieces
+        opponent_color = 'black' if color == 'white' else 'white'
+        for row in range(8):
+            for col in range(8):
+                piece = self.board[row][col]
+                if piece and piece[1] == opponent_color:
+                    moves = self.highlight_moves(piece, row, col)  # Get potential moves for opponent piece
+                    if king_pos in moves:  # If any opponent piece can move to the king's position
+                        return True  # The king is in check
+
+        return False  # The king is safe
 
     def run(self):
         """Main game loop."""
@@ -360,26 +383,15 @@ class ChessBoard:
 
                 if event.type == MOUSEBUTTONDOWN:
                     mouse_x, mouse_y = event.pos
-
-                    # Handle pawn promotion selection
-                    if promoting_pawn:
-                        if self.is_in_promotion_popup(mouse_x, mouse_y, promotion_position, current_turn):
-                            promoted_piece = self.handle_promotion_selection(mouse_x, mouse_y, promotion_position, current_turn)
-                            if promoted_piece:
-                                # Promote the pawn by replacing it with the selected piece
-                                self.board[promotion_position[0]][promotion_position[1]] = promoted_piece
-                                promoting_pawn = False
-                                promotion_position = None
-                                selected_piece = None  # Ensure selection is cleared
-                                # Switch turn only after the promotion is complete
-                                current_turn = 'black' if current_turn == 'white' else 'white'
-                            continue  # Ensure we continue to listen for further clicks
-
                     col = mouse_x // self.cell_size
                     row = mouse_y // self.cell_size
 
                     # If a piece is already selected
                     if selected_piece is not None:
+                        # Store the current state before the move
+                        previous_piece = self.board[selected_row][selected_col]
+                        previous_target = self.board[row][col]
+
                         if (row, col) in self.highlight_moves(selected_piece, selected_row, selected_col):  # Move piece
                             # Move the piece
                             self.board[row][col] = selected_piece  # Place the piece in the new position
@@ -391,10 +403,18 @@ class ChessBoard:
                                 promotion_position = (row, col)
                                 selected_piece = None  # Deselect to handle promotion properly
 
-                            # Switch turn after a move if not in promotion
-                            if not promoting_pawn:
-                                selected_piece = None  # Clear the selection after move
-                                current_turn = 'black' if current_turn == 'white' else 'white'
+                            # Check if the king is in check
+                            if self.is_king_in_check(current_turn):
+                                # Revert the move if the king is in check
+                                self.board[selected_row][selected_col] = previous_piece
+                                self.board[row][col] = previous_target
+                                # Display a message (optional)
+                                print(f"{current_turn} is in check! Move reverted.")
+                            else:
+                                # Switch turn after a move if not in promotion
+                                if not promoting_pawn:
+                                    selected_piece = None  # Clear the selection after move
+                                    current_turn = 'black' if current_turn == 'white' else 'white'
                         else:
                             # Deselect the piece if the click is not a valid move
                             selected_piece = None  # Deselect if it's not a valid move
@@ -424,7 +444,6 @@ class ChessBoard:
 
             # Update the display
             pygame.display.update()
-
 
 
 
