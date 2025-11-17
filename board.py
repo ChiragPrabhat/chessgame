@@ -464,4 +464,5 @@ class ChessBoard:
 if __name__ == "__main__":
     chess_board = ChessBoard(640, 640)
 
+
     chess_board.run()
